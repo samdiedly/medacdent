@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedacDent - Gestión de Citas</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+        header, footer { background-color: #5CBAAA; color: white; text-align: center; padding: 10px 0; }
+        main { padding: 20px; }
+        .form-control { margin-bottom: 15px; }
+        .form-control label { display: block; font-weight: bold; }
+        .form-control input, .form-control textarea { width: 100%; padding: 8px; margin-top: 5px; }
+        .error { color: red; font-size: 0.9em; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        table th, table td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        table th { background-color: #165349; color: white; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <header>
+        <img src="medac.jpeg" alt="MedacDent Logo" style="height: 100px;">
+        <h1>Gestión de Citas</h1>
+    </header>
+    <main>
+        <section id="form-section">
+            <h2>Datos personales</h2>
+            <form id="cita-form">
+                <input type="hidden" id="cita-id"> 
+                <div class="form-control">
+                    <label for="fecha">Fecha y Hora</label>
+                    <input type="datetime-local" id="fecha" required>
+                    <span class="error hidden" id="fecha-error">Fecha y hora inválidas</span>
+                </div>
+                <div class="form-control">
+                    <label for="nombre">Nombre</label>
+                    <input type="text" id="nombre" required>
+                    <span class="error hidden" id="nombre-error">El nombre es obligatorio</span>
+                </div>
+                <div class="form-control">
+                    <label for="apellidos">Apellidos</label>
+                    <input type="text" id="apellidos" required>
+                    <span class="error hidden" id="apellidos-error">Los apellidos son obligatorios</span>
+                </div>
+                <div class="form-control">
+                    <label for="dni">DNI</label>
+                    <input type="text" id="dni" required pattern="\d{8}[A-Za-z]{1}">
+                    <span class="error hidden" id="dni-error">DNI inválido. Debe tener 8 dígitos seguidos de una letra.</span>
+                </div>
+                <div class="form-control">
+                    <label for="telefono">Teléfono</label>
+                    <input type="tel" id="telefono" required pattern="[0-9]{9}">
+                    <span class="error hidden" id="telefono-error">Teléfono inválido</span>
+                </div>
+                <div class="form-control">
+                    <label for="nacimiento">Fecha de Nacimiento</label>
+                    <input type="date" id="nacimiento" required>
+                    <span class="error hidden" id="nacimiento-error">Fecha de nacimiento inválida</span>
+                </div>
+                <div class="form-control">
+                    <label for="observaciones">Observaciones</label>
+                    <textarea id="observaciones"></textarea>
+                    <span class="error hidden" id="observaciones-error">Las observaciones no pueden estar vacías</span>
+                </div>
+                <button type="button" id="guardar-cita">Guardar Cita</button>
+            </form>
+        </section>
+
+        <section id="tabla-section">
+            <h2>Listado de Citas</h2>
+            <table id="tabla-citas">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Fecha</th>
+                        <th>Nombre</th>
+                        <th>Apellidos</th>
+                        <th>DNI</th>
+                        <th>Teléfono</th>
+                        <th>Fecha de Nacimiento</th>
+                        <th>Observaciones</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr id="placeholder-row">
+                        <td colspan="9">Dato vacío</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+    </main>
+    <footer>
+        <p>Teléfono: 984 03 99 99 | Correo: contacto@medacdent.com</p>
+        <p>Dirección: Pl. Occidente, 1, 33006 Oviedo, Asturias</p>
+    </footer>
+
+    <script>
+
+        let citaIdCounter = 1;
+
+        function obtenerContadorId() {
+    return parseInt(localStorage.getItem('citaIdCounter') || '1');
+}
+
+// Establecer el contador de ID de citas en localStorage
+function guardarContadorId(contador) {
+    localStorage.setItem('citaIdCounter', contador);
+}
+
+        class Cita {
+    constructor(fecha, nombre, apellidos, dni, telefono, nacimiento, observaciones) {
+        this.id = obtenerContadorId();  // Obtener el ID desde el almacenamiento local
+        guardarContadorId(this.id + 1);  // Incrementar y guardar el nuevo contador
+        this.fecha = fecha;
+        this.nombre = nombre;
+        this.apellidos = apellidos;
+        this.dni = dni;
+        this.telefono = telefono;
+        this.nacimiento = nacimiento;
+        this.observaciones = observaciones;
+    }
+}
+
+        const form = document.getElementById('cita-form');
+        const tablaCitas = document.getElementById('tabla-citas').querySelector('tbody');
+        const placeholderRow = document.getElementById('placeholder-row');
+
+        function guardarCitasEnStorage(citas) {
+            localStorage.setItem('citas', JSON.stringify(citas));
+        }
+
+        function obtenerCitasDeStorage() {
+            return JSON.parse(localStorage.getItem('citas') || '[]');
+        }
+
+        // Cargar citas desde localStorage
+        function cargarCitas() {
+    const citas = obtenerCitasDeStorage();
+    limpiarTabla();
+    if (citas.length > 0) {
+        placeholderRow.classList.add('hidden');
+        citas.forEach((cita, index) => agregarFilaCita(cita, index + 1));
+    } else {
+        placeholderRow.classList.remove('hidden');
+    }
+}
+
+function existeCitaEnFecha(fecha, idModificar) {
+    const citas = obtenerCitasDeStorage();
+    return citas.some(cita => cita.fecha === fecha && cita.id !== idModificar); // Excluir la cita actual de la verificación
+}
+
+        // Guardar cita -----------------------------------------------------------------------------------------
+        document.getElementById('guardar-cita').addEventListener('click', () => {
+    const nuevaCita = obtenerDatosFormulario();
+    const citaId = document.getElementById('cita-id').value;  // Obtener el id de la cita del campo oculto
+
+    if (validarCita(nuevaCita)) {
+        const citas = obtenerCitasDeStorage();
+
+        if (citaId) {
+            // Modificar una cita existente
+            const index = citas.findIndex(c => c.id == citaId);
+            if (index !== -1) {
+                citas[index] = new Cita(
+                    nuevaCita.fecha,
+                    nuevaCita.nombre,
+                    nuevaCita.apellidos,
+                    nuevaCita.dni,
+                    nuevaCita.telefono,
+                    nuevaCita.nacimiento,
+                    nuevaCita.observaciones
+                );
+            }
+        } else {
+           
+            const cita = new Cita(
+                nuevaCita.fecha,
+                nuevaCita.nombre,
+                nuevaCita.apellidos,
+                nuevaCita.dni,
+                nuevaCita.telefono,
+                nuevaCita.nacimiento,
+                nuevaCita.observaciones
+            );
+            citas.push(cita);
+        }
+
+        guardarCitasEnStorage(citas);
+        limpiarTabla();
+        cargarCitas();
+        form.reset();
+        document.getElementById('cita-id').value = ''; 
+    }
+});
+
+
+        function obtenerDatosFormulario() {
+            return {
+                fecha: document.getElementById('fecha').value,
+                nombre: document.getElementById('nombre').value,
+                apellidos: document.getElementById('apellidos').value,
+                dni: document.getElementById('dni').value,
+                telefono: document.getElementById('telefono').value,
+                nacimiento: document.getElementById('nacimiento').value,
+                observaciones: document.getElementById('observaciones').value
+            };
+        }
+
+function validarCita(cita) {
+    let valido = true;
+    const ahora = new Date();
+    const fechaCita = new Date(cita.fecha);
+    const citaId = document.getElementById('cita-id').value;  // Obtener el id de la cita del campo oculto
+
+    // Validar que la fecha no esté vacía
+    const fechaInput = document.getElementById('fecha');
+    const errorFecha = document.getElementById('fecha-error');
+    
+    if (!cita.fecha) {
+        // Si no se ha proporcionado fecha, mostrar error
+        errorFecha.textContent = 'La fecha y hora son obligatorias.';
+        errorFecha.classList.remove('hidden');
+        valido = false;
+    } else {
+        // Si se proporciona fecha, ocultamos el mensaje de error
+        errorFecha.classList.add('hidden');
+    }
+
+    // Validar que la fecha de la cita sea en el futuro
+    if (cita.fecha && fechaCita <= ahora) {
+        errorFecha.textContent = 'La fecha y hora deben ser futuras.';
+        errorFecha.classList.remove('hidden');
+        valido = false;
+    }
+
+    // Validar los demás campos
+    Object.keys(cita).forEach(campo => {
+        if (campo !== 'fecha') { 
+            const input = document.getElementById(campo);
+            const error = document.getElementById(`${campo}-error`);
+            if (!input.checkValidity()) {
+                error.classList.remove('hidden');
+                valido = false;
+            } else {
+                error.classList.add('hidden');
+            }
+        }
+    });
+
+
+    if (!validarDNI(cita.dni)) {
+        const error = document.getElementById('dni-error');
+        error.classList.remove('hidden');
+        valido = false;
+    }
+
+    return valido;
+}
+
+
+        function validarDNI(dni) {
+            const letras = "TRWAGMYFPDXBNJZSQVHLCKE";
+            const numero = parseInt(dni.substring(0, 8));
+            const letra = dni.charAt(8).toUpperCase();
+            return letras[numero % 23] === letra;
+        }
+
+
+        function agregarFilaCita(cita, indice) {
+    //console.log("Agregando cita:", cita);
+    const fila = document.createElement('tr');
+    fila.innerHTML = `
+        <td>${indice}</td>
+        <td>${cita.fecha}</td>
+        <td>${cita.nombre}</td>
+        <td>${cita.apellidos}</td>
+        <td>${cita.dni}</td>
+        <td>${cita.telefono}</td>
+        <td>${cita.nacimiento}</td>
+        <td>${cita.observaciones}</td>
+        <td>
+            <button onclick="modificarCita(${cita.id})">Modificar</button>
+            <button onclick="eliminarCita(${cita.id})">Eliminar</button>
+        </td>
+    `;
+    tablaCitas.appendChild(fila);
+}
+
+
+    function modificarCita(id) {
+    const citas = obtenerCitasDeStorage();
+    const cita = citas.find(c => c.id === id);
+
+    if (cita) {
+
+        document.getElementById('cita-id').value = cita.id; 
+        document.getElementById('fecha').value = cita.fecha;
+        document.getElementById('nombre').value = cita.nombre;
+        document.getElementById('apellidos').value = cita.apellidos;
+        document.getElementById('dni').value = cita.dni;
+        document.getElementById('telefono').value = cita.telefono;
+        document.getElementById('nacimiento').value = cita.nacimiento;
+        document.getElementById('observaciones').value = cita.observaciones;
+    }
+}
+
+        function eliminarCita(id) {
+            let citas = obtenerCitasDeStorage();
+            citas = citas.filter(c => c.id !== id);
+            guardarCitasEnStorage(citas);
+
+            limpiarTabla();
+            cargarCitas();
+        }
+
+        function limpiarTabla() {
+            tablaCitas.innerHTML = '';
+        }
+
+        cargarCitas();
+    </script>
+</body>
+</html>
+
+
+
+
